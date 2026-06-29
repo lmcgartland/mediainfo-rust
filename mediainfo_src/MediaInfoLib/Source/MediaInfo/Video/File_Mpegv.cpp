@@ -93,6 +93,7 @@ extern const char* Mpegv_matrix_coefficients(int8u matrix_coefficients)
         case 12 : return "Chromaticity-derived non-constant";           //Added in HEVC 2016
         case 13 : return "Chromaticity-derived constant";               //Added in HEVC 2016
         case 14 : return "ICtCp";                                       //Added in HEVC 2016
+        case 15 : return "IPT-PQ-C2";
         default : return "";
     }
 }
@@ -3117,8 +3118,7 @@ void File_Mpegv::slice_start_macroblock_block(int8u i)
                     Element_Info1(Mpegv_dct_coefficients[dct_coefficient].mapped_to2);
                     Element_Info1(Mpegv_dct_coefficients[dct_coefficient].mapped_to3);
         }
-        if (IsFirst)
-            IsFirst=false;
+        IsFirst=false;
         Element_Trace_End0();
     }
 }
@@ -4067,8 +4067,7 @@ void File_Mpegv::group_start()
         Time_Current_Seconds=60*60*Hours+60*Minutes+Seconds;
         Time_Current_Frames =Frames;
 
-        if (!group_start_IsParsed)
-            group_start_IsParsed=true;
+        group_start_IsParsed=true;
         if (!group_start_FirstPass)
         {
             group_start_FirstPass=true;

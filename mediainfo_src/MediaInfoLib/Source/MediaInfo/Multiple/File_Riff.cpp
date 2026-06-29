@@ -1061,7 +1061,7 @@ void File_Riff::Header_Parse()
         else if (!File_Name.empty())
         {
             File F(File_Name);
-            F.GoTo(File_Offset+Buffer_Offset+8+Size);
+            F.GoTo(File_Offset+Buffer_Offset+8+Size_Complete); // TODO: remove this code and check non word aligned streams directly
             int8u Temp;
             if (F.Read(&Temp, 1))
             {
@@ -1197,7 +1197,10 @@ string File_Riff::CreateElementName()
     string Result;
     for (size_t i = 1; i < Element_Level; i++) {
         Result += Ztring().From_CC4(Element[i].Code).Trim().To_UTF8();
-        if (Result.back() >= '0' && Result.back() <= '9') {
+        if (Result.empty()) {
+            Result = "0x20202020"; // Full of spaces
+        }
+        else if (Result.back() >= '0' && Result.back() <= '9') {
             Result += '_';
         }
         Result += __T(' ');

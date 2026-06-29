@@ -40,6 +40,9 @@
 #if defined(MEDIAINFO_MPEGA_YES)
     #include "MediaInfo/Audio/File_Mpega.h"
 #endif
+#if defined(MEDIAINFO_AAC_YES)
+    #include "MediaInfo/Audio/File_Aac.h"
+#endif
 #include "MediaInfo/MediaInfo_Config_MediaInfo.h"
 #if MEDIAINFO_DEMUX
     #include "ThirdParty/base64/base64.h"
@@ -391,6 +394,7 @@ void File_Wm::Header_StreamProperties_Audio ()
             case 0x0161 :
             case 0x0162 :
             case 0x0163 : Header_StreamProperties_Audio_WMA(); break;
+            case 0x1610 : Header_StreamProperties_Audio_HEAac(); break;
             case 0x7A21 :
             case 0x7A22 : Header_StreamProperties_Audio_AMR(); break;
             default     : Skip_XX(Data_Size,                    "Unknown");
@@ -428,6 +432,21 @@ void File_Wm::Header_StreamProperties_Audio_WMA ()
     Skip_L4(                                                    "SamplesPerBlock");
     Skip_L2(                                                    "EncodeOptions");
     Skip_L4(                                                    "SuperBlockAlign");
+}
+
+//---------------------------------------------------------------------------
+void File_Wm::Header_StreamProperties_Audio_HEAac()
+{
+    //Parsing
+    #if defined(MEDIAINFO_AAC_YES)
+        File_Aac* MI=new File_Aac();
+        MI->Mode=File_Aac::Mode_HEAACWAVEFORMAT;
+        Open_Buffer_Init(MI);
+        Open_Buffer_Continue(MI);
+        Stream[Stream_Number].Parser=MI;
+    #else //MEDIAINFO_AAC_YES
+        Skip_XX(Element_Size-Element_Offset,                    "HEAACWAVEFORMAT");
+    #endif
 }
 
 //---------------------------------------------------------------------------
@@ -1119,7 +1138,7 @@ void File_Wm::Header_ExtendedContentDescription()
                             int8u PictureType;
                             Get_L1 (PictureType,                                    "Picture Ttype"); Element_Info1(Id3v2_PictureType(PictureType));
                             Get_L4 (Data_Size,                                      "Data size");
-                            if (Value_Length<5 || Data_Size>Value_Length-5)
+                            if (Value_Length<5 || Data_Size>Value_Length-5U)
                                 return; //There is a problem
                             int64u End = Element_Offset;
                             while (End + 1 < Element_Size && *(int16u*)(Buffer + Buffer_Offset + End)) {
@@ -1224,6 +1243,17 @@ void File_Wm::Header_ExtendedContentDescription()
                 Fill(Stream_General, 0, General_LawRating, Value);
             else if (Name==__T("WM/ParentalRatingReason"))
                 Fill(Stream_General, 0, General_LawRating_Reason, Value);
+            else if (Name==__T("WM/PartOfSet")) {
+                if (Value.find(__T('/'))!=Error)
+                {
+                    Fill(Stream_General, 0, General_Part_Position_Total, Value.SubString(__T("/"), __T("")));
+                    Fill(Stream_General, 0, General_Part_Position, Value.SubString(__T(""), __T("/")));
+                }
+                else
+                    Fill(Stream_General, 0, General_Part_Position, Value);
+            }
+            else if (Name==__T("WM/SetSubTitle"))
+                Fill(Stream_General, 0, General_Part, Value);
             else if (Name==__T("WM/Provider"))
                 Fill(Stream_General, 0, "Provider", Value);
             else if (Name==__T("WM/Publisher"))

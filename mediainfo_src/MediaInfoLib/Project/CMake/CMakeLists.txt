@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 3.5.0)
+cmake_minimum_required(VERSION 3.5.0...4.3.0)
 
 project(MediaInfoLib)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/modules")
 
-set(MediaInfoLib_MAJOR_VERSION 25)
-set(MediaInfoLib_MINOR_VERSION 07)
+set(MediaInfoLib_MAJOR_VERSION 26)
+set(MediaInfoLib_MINOR_VERSION 05)
 set(MediaInfoLib_PATCH_VERSION 0)
 set(MediaInfoLib_VERSION ${MediaInfoLib_MAJOR_VERSION}.${MediaInfoLib_MINOR_VERSION})
 
@@ -38,6 +38,27 @@ if(NOT TARGET uninstall)
    "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
 endif()
 
+if(MSVC)
+    if(NOT "${CMAKE_VERSION}" VERSION_LESS "3.13")
+        add_compile_options(/GS /W3 /wd4244 /wd4267 /wd4305 /guard:cf /sdl)
+        add_link_options(/guard:cf)
+        if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL ARM64)
+            add_compile_options(/guard:ehcont /guard:signret)
+            add_link_options(/guard:ehcont /guard:delayloadsignret)
+        endif()
+        if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL x64)
+            add_compile_options(/guard:ehcont)
+            add_link_options(/guard:ehcont /CETCOMPAT)
+        endif()
+        if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL X86)
+            add_compile_options()
+            add_link_options(/CETCOMPAT)
+        endif()
+    else()
+        message(WARNING "CMake < 3.13: Compiler/linker security mitigation flags for MSVC are not automatically added.")
+    endif()
+endif()
+
 if (NOT BUILD_ZENLIB)
   find_package(ZenLib REQUIRED)
 else()
@@ -56,11 +77,11 @@ if (NOT BUILD_ZLIB)
   find_package(ZLIB REQUIRED)
 else()
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../zlib ${CMAKE_CURRENT_BINARY_DIR}/zlib)
-  if(NOT BUILD_SHARED_LIBS)
-    set(ZLIB_LIBRARIES "${LIB_INSTALL_DIR}/$<TARGET_LINKER_FILE_NAME:zlibstatic>")
+  if(WIN32 OR NOT BUILD_SHARED_LIBS)
+    set(ZLIB_LIBRARIES ZLIB::ZLIBSTATIC)
   endif()
   if(UNIX AND BUILD_SHARED_LIBS)
-    target_compile_options(zlibstatic PRIVATE -fPIC)
+    target_compile_options(ZLIB::ZLIBSTATIC PRIVATE -fPIC)
   endif()
   set(ZLIB_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/../../../zlib ${CMAKE_CURRENT_BINARY_DIR}/zlib)
 endif()
@@ -74,13 +95,6 @@ else()
 endif()
 
 set(MediaInfoLib_SOURCES_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../../Source)
-
-# On Windows debug library should have 'd' postfix.
-if(WIN32)
-  set(CMAKE_DEBUG_POSTFIX "d")
-elseif(APPLE)
-  set(CMAKE_DEBUG_POSTFIX "_debug")
-endif()
 
 # use bundled tinyxml only if no system
 find_package(TinyXML)
@@ -224,6 +238,7 @@ set(MediaInfoLib_SRCS
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Export/Export_PBCore.cpp
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Export/Export_PBCore2.cpp
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Export/Export_reVTMD.cpp
+  ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Image/File_AmigaIcon.cpp
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Image/File_ArriRaw.cpp
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Image/File_Bmp.cpp
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Image/File_Bpg.cpp
@@ -338,7 +353,9 @@ set(MediaInfoLib_SRCS
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Text/File_Ttml.cpp
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Video/File_Aic.cpp
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Video/File_AfdBarData.cpp
+  ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Video/File_Apv.cpp
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Video/File_Av1.cpp
+  ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Video/File_Av2.cpp
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Video/File_Avc.cpp
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Video/File_Avc_Duplicate.cpp
   ${MediaInfoLib_SOURCES_PATH}/MediaInfo/Video/File_AvsV.cpp
@@ -382,15 +399,31 @@ endif()
 add_library(mediainfo ${MediaInfoLib_SRCS})
 target_include_directories(mediainfo INTERFACE ${INCLUDE_INSTALL_DIR})
 
+include(${CMAKE_CURRENT_SOURCE_DIR}/MediaInfoSetupOptions.cmake)
+
+if(NOT "${CMAKE_VERSION}" VERSION_LESS "3.16")
+    target_precompile_headers(mediainfo PRIVATE "${MediaInfoLib_SOURCES_PATH}/MediaInfo/PreComp.h")
+    file(GLOB_RECURSE MEDIAINFO_THIRD_PARTY_SOURCES
+        ${MediaInfoLib_SOURCES_PATH}/ThirdParty/*.c
+        ${MediaInfoLib_SOURCES_PATH}/ThirdParty/*.cc
+        ${MediaInfoLib_SOURCES_PATH}/ThirdParty/*.cpp
+    )
+    set_source_files_properties(
+        ${MediaInfoLib_SOURCES_PATH}/MediaInfo/TimeCode.cpp
+        ${MEDIAINFO_THIRD_PARTY_SOURCES}
+        PROPERTIES SKIP_PRECOMPILE_HEADERS ON
+    )
+endif()
+
 if(BUILD_ZLIB)
-  add_dependencies(mediainfo zlibstatic)
+  add_dependencies(mediainfo ZLIB::ZLIBSTATIC)
 endif()
 
 # disable some features. Maybe it should be enabled.
 target_compile_definitions(mediainfo PRIVATE MEDIAINFO_LIBMMS_NO)
 target_compile_definitions(mediainfo PRIVATE FMT_UNICODE=0)
 if(NOT CURL_FOUND)
-  target_compile_definitions(mediainfo PRIVATE MEDIAINFO_LIBCURL_NO)
+  target_compile_definitions(mediainfo PRIVATE MEDIAINFO_LIBCURL_DLL_RUNTIME)
 else()
   include_directories(${CURL_INCLUDE_DIRS})
   target_link_libraries(mediainfo ${CURL_LIBRARIES})
@@ -437,11 +470,8 @@ else()
     SOVERSION ${MediaInfoLib_SOVERSION})
 endif()
 
-set_target_properties(mediainfo PROPERTIES
-  CXX_STANDARD 11
-  CXX_EXTENSIONS NO
-  CXX_STANDARD_REQUIRED YES
-)
+include(EnableLatestCXX)
+enable_latest_cxx(mediainfo)
 
 install(TARGETS mediainfo EXPORT mediainfo-export
   RUNTIME DESTINATION ${BIN_INSTALL_DIR}
@@ -451,8 +481,10 @@ install(TARGETS mediainfo EXPORT mediainfo-export
 install(EXPORT mediainfo-export DESTINATION ${MediaInfoLib_CONFIG_INSTALL_DIR} FILE MediaInfoLibTargets.cmake)
 
 foreach(HEADER ${MediaInfoLib_PUBLIC_HDRS})
-  string(REPLACE ${MediaInfoLib_SOURCES_PATH} "" DIR ${HEADER})
-  string(REGEX REPLACE "/[^/]*$" "" DIR ${DIR})
+  get_filename_component(HEADER_ABS "${HEADER}" ABSOLUTE)
+  get_filename_component(SOURCES_DIR_ABS "${MediaInfoLib_SOURCES_PATH}" ABSOLUTE)
+  file(RELATIVE_PATH REL_PATH "${SOURCES_DIR_ABS}" "${HEADER_ABS}")
+  get_filename_component(DIR "${REL_PATH}" DIRECTORY)
   install(FILES ${HEADER} DESTINATION include/${DIR})
 endforeach(HEADER ${MediaInfoLib_PUBLIC_HDRS})
 

@@ -57,14 +57,14 @@ extern MediaInfo_Config Config;
     } \
 
 #define INTEGRITY_SIZE_ATLEAST(_BYTES) \
-    if (Element_Offset+_BYTES>Element_Size) \
+    if (Element_Offset>Element_Size || _BYTES>Element_Size-Element_Offset) \
     { \
         Trusted_IsNot(); \
         return; \
     } \
 
 #define INTEGRITY_SIZE_ATLEAST_STRING(_BYTES) \
-    if (Element_Offset+_BYTES>Element_Size) \
+    if (Element_Offset>Element_Size || _BYTES>Element_Size-Element_Offset) \
     { \
         Trusted_IsNot(); \
         Info.clear(); \
@@ -72,7 +72,7 @@ extern MediaInfo_Config Config;
     } \
 
 #define INTEGRITY_SIZE_ATLEAST_INT(_BYTES) \
-    if (Element_Offset+_BYTES>Element_Size) \
+    if (Element_Offset>Element_Size || _BYTES>Element_Size-Element_Offset) \
     { \
         Trusted_IsNot(); \
         Info=0; \
@@ -284,9 +284,9 @@ void File__Analyze::Get_BFP4_(int8u  Bits, float32 &Info)
     int32s Integer=(int32s)BS->Get4(Bits);
     int32u Fraction=BS->Get4(32-Bits);
     BS_End();
-    if (Integer>=(1<<Bits)/2)
+    if (Bits && Integer>=(1<<Bits)/2)
         Integer-=1<<Bits;
-    Info=Integer+((float32)Fraction)/(1<<(32-Bits));
+    Info=Integer+((float32)Fraction)/(1LL<<(32-Bits));
 }
 
 //---------------------------------------------------------------------------
@@ -674,12 +674,6 @@ void File__Analyze::Get_EB(int64u &Info)
 {
     //Element size
     INTEGRITY_SIZE_ATLEAST_INT(1);
-    if (Buffer[Buffer_Offset+Element_Offset]==0xFF)
-    {
-        Info=File_Size-(File_Offset+Buffer_Offset+Element_Offset);
-        Element_Offset++;
-        return;
-    }
     int8u  Size=0;
     int8u  Size_Mark=0;
     BS_Begin();

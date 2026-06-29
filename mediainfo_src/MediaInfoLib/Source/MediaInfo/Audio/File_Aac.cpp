@@ -35,6 +35,7 @@ namespace MediaInfoLib
 //***************************************************************************
 
 extern const char* Aac_audioObjectType(int8u audioObjectType);
+extern string Mpeg4_Descriptors_AudioProfileLevelString(int8u AudioProfileLevelIndication);
 extern string Mpeg4_Descriptors_AudioProfileLevelIndicationString(const profilelevel_struct& ProfileLevel);
 
 //***************************************************************************
@@ -104,6 +105,7 @@ File_Aac::File_Aac()
 
     //Temp
     CanFill=true;
+    gain_control_data_present_AtLeastOnce=false;
 }
 
 //---------------------------------------------------------------------------
@@ -165,6 +167,11 @@ void File_Aac::Streams_Fill()
         frame_length_Multiplier=2;
     Fill(Stream_Audio, StreamPos_Last, Audio_SamplesPerFrame, frame_length*frame_length_Multiplier);
     }
+    if (gain_control_data_present_AtLeastOnce)
+    {
+        Fill(Stream_Audio, 0, "GainControl_Present", "Yes");
+        Fill_SetOptions(Stream_Audio, 0, "GainControl_Present", "N NTY");
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -198,6 +205,18 @@ void File_Aac::Streams_Update()
 //---------------------------------------------------------------------------
 void File_Aac::Streams_Finish()
 {
+    for (int g = 0; g < num_window_groups; g++)
+    {
+        for (int8u i = 0; i < num_sec[g]; i++)
+        {
+            if (sect_cb[g][i] == 13) //NOISE_HCB
+            {
+                Fill(Stream_Audio, 0, Audio_Format_Settings, "PNS");
+                break;
+            }
+        }
+    }
+
     switch(Mode)
     {
         case Mode_ADIF    :
@@ -347,6 +366,7 @@ void File_Aac::Read_Buffer_Continue()
         case Mode_ADIF                :
         case Mode_LATM:
         case Mode_ADTS                : File__Tags_Helper::Read_Buffer_Continue(); break;
+        case Mode_HEAACWAVEFORMAT     : Read_Buffer_Continue_HEAACWAVEFORMAT(); break;
         default                       : if (Frame_Count)
                                             File__Tags_Helper::Finish();
     }
@@ -363,6 +383,33 @@ void File_Aac::Read_Buffer_Continue_AudioSpecificConfig()
 
     Infos_AudioSpecificConfig=Infos;
     Mode=Mode_payload; //Mode_AudioSpecificConfig only once
+}
+
+//---------------------------------------------------------------------------
+void File_Aac::Read_Buffer_Continue_HEAACWAVEFORMAT()
+{
+    //Parsing
+    Element_Begin1("HEAACWAVEINFO");
+    int16u wPayloadType, wStructType;
+    Get_L2 (wPayloadType,                                       "wPayloadType");
+    Info_L2(wAudioProfileLevelIndication,                       "wAudioProfileLevelIndication"); Param_Info1(Mpeg4_Descriptors_AudioProfileLevelString(wAudioProfileLevelIndication));
+    Get_L2 (wStructType,                                        "wStructType");
+    Skip_L2(                                                    "wReserved1");
+    Skip_L4(                                                    "dwReserved2");
+    Element_End0();
+    switch (wPayloadType)
+    {
+        case 0 : Read_Buffer_Continue_AudioSpecificConfig(); break;
+        default: Skip_XX(Element_Size-Element_Offset,           "(Unknown)");
+    }
+    switch (wStructType)
+    {
+        case 0 : Mode=Mode_payload; break;
+        case 1 : Mode=Mode_ADTS; break;
+        case 2 : Mode=Mode_ADIF; break;
+        case 3 : Mode=Mode_LATM; break;
+        default: File__Analyze::Finish(); // Unknown mode, stopping
+    }
 }
 
 //---------------------------------------------------------------------------

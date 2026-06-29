@@ -230,6 +230,7 @@ BitRate_Mode;Bit rate mode
 BitRate_Mode_CBR;Constant
 BitRate_Mode_VBR;Variable
 BitRate_Nominal;Nominal bit rate
+BitstreamLevel;Bitstream level
 Bits-(Pixel*Frame);Bits/(Pixel*Frame)
 BufferSize;Buffer size
 Cancel;Cancel
@@ -840,6 +841,7 @@ Language_lv;Latvian
 Language_mg;Malagasy
 Language_mh;Marshallese
 Language_mi;Maori
+Language_mis;Uncoded languages
 Language_mk;Macedonian
 Language_ml;Malayalam
 Language_mn;Mongolian
@@ -916,6 +918,7 @@ Language_tw;Twi
 Language_ty;Tahitian
 Language_ug;Uighur
 Language_uk;Ukrainian
+Language_und;Undetermined
 Language_ur;Urdu
 Language_uz;Uzbek
 Language_ve;Venda
@@ -938,6 +941,7 @@ Language_zh-yue;Cantonese
 Language_zh-Hans;Chinese (Simplified)
 Language_zh-Hant;Chinese (Traditional)
 Language_zu;Zulu
+Language_zxx;No linguistic content or not applicable
 LawRating;Law rating
 LCCN;LCCN
 LfeAttenuationKnown;LFE attenuation known
@@ -1108,6 +1112,7 @@ Presentation;Presentation
 PresentationConfig;Presentation config
 PresentationConfig_ContentClassifier;Presentation config from content classifiers
 PresentationID;Presentation ID
+PresentationLevel;Presentation level
 PreviousDownmixType5ch;Previous Downmix Type 5-ch
 PreviousMixType2ch;Previous Mix Type 2-ch
 PrimaryAudioLanguage;Primary Audio Language
